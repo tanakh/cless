@@ -34,7 +34,7 @@ main = join $ execParser opts where
                   <> short 's'
                   <> metavar "STYLE"
                   <> help "Specify style name (default 'pygments')" ) )
-        <*> argument str (metavar "FILE")
+        <*> optional (argument str (metavar "FILE"))
 
 styles :: [(String, Style)]
 styles =
@@ -47,18 +47,20 @@ styles =
   , ("zenburn"   , zenburn   )
   ]
 
-process :: Bool -> Bool -> Maybe String -> Maybe String -> FilePath -> IO ()
+process :: Bool -> Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
 process True _ _ _ _ =
   mapM_ putStrLn languages
 
 process _ True _ _ _ =
   mapM_ (putStrLn . fst) styles
 
-process _ _ mb_lang mb_stylename file = do
-  con <- readFile file
+process _ _ mb_lang mb_stylename mb_file = do
+  con <- case mb_file of
+      Just file -> readFile file
+      Nothing -> getContents
 
   let lang = fromMaybe (error "cannot determin language")
-             $ mb_lang <|> listToMaybe (languagesByFilename file)
+             $ mb_lang <|> do file <- mb_file; listToMaybe (languagesByFilename file)
 
       ss = highlightAs lang con
 
