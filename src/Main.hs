@@ -58,6 +58,9 @@ defaultPager = "less -R"
 defaultTerm :: String
 defaultTerm = "xterm-256color"
 
+defaultStyle :: Style
+defaultStyle = pygments
+
 process :: Bool -> Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
 process True _ _ _ _ =
   mapM_ putStrLn languages
@@ -68,14 +71,14 @@ process _ True _ _ _ =
 process _ _ mb_lang mb_stylename mb_file = do
   con <- case mb_file of
       Just file -> readFile file
-      Nothing -> getContents
+      Nothing   -> getContents
 
-  let lang = fromMaybe (error $ "cannot determin language: " ++ fromMaybe "<stdin>" mb_file)
+  let lang = fromMaybe "plain"
              $ mb_lang <|> do file <- mb_file; listToMaybe (languagesByFilename file)
 
       ss = highlightAs lang con
 
-      style = maybe pygments findStyle mb_stylename
+      style = maybe defaultStyle findStyle mb_stylename
 
       findStyle name =
         fromMaybe (error $ "invalid style name: " ++ name)
