@@ -16,6 +16,7 @@ import           System.IO
 import           System.Process
 import           Text.Highlighting.Kate              as Kate
 import           Text.PrettyPrint.Free               hiding ((<>))
+import           Text.Printf
 
 main :: IO ()
 main = join $ execParser opts where
@@ -31,6 +32,9 @@ main = join $ execParser opts where
         <*> switch ( long "list-styles"
                   <> short 'S'
                   <> help "Show the list of supported styles" )
+        <*> switch ( long "LINE-NUMBERS"
+                  <> short 'N'
+                  <> help "Show line numbers" )
         <*> optional (strOption ( long "lang"
                   <> short 'l'
                   <> metavar "LANG"
@@ -61,14 +65,14 @@ defaultTerm = "xterm-256color"
 defaultStyle :: Style
 defaultStyle = pygments
 
-process :: Bool -> Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
-process True _ _ _ _ =
+process :: Bool -> Bool -> Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
+process True _ _ _ _ _ =
   mapM_ putStrLn languages
 
-process _ True _ _ _ =
+process _ True _ _ _ _ =
   mapM_ (putStrLn . fst) styles
 
-process _ _ mb_lang mb_stylename mb_file = do
+process _ _ linum mb_lang mb_stylename mb_file = do
   con <- case mb_file of
       Just file -> readFile file
       Nothing   -> getContents
@@ -84,10 +88,10 @@ process _ _ mb_lang mb_stylename mb_file = do
         fromMaybe (error $ "invalid style name: " ++ name)
         $ lookup name styles
 
-      doc = ppr style ss <> linebreak
+      doc = ppr linum style ss <> linebreak
       sdoc = renderPretty 0.6 80 (prettyTerm doc)
 
-  evaluate sdoc
+  evaluate style -- to raise error eagerly
 
   termType <- fromMaybe defaultTerm <$> lookupEnv "TERM"
   pager <- fromMaybe defaultPager <$> lookupEnv "PAGER"
@@ -102,8 +106,15 @@ process _ _ mb_lang mb_stylename mb_file = do
         Nothing -> displayIO h sdoc
       hClose h
 
-ppr :: Style -> [SourceLine] -> TermDoc
-ppr Style{..} = vcat . map (hcat . map token) where
+ppr :: Bool -> Style -> [SourceLine] -> TermDoc
+ppr linum Style{..} = vcat . zipWith addLinum [1..] . map (hcat . map token) where
+  addLinum ln line
+      | linum =
+          let lns = text $ printf "%7d " (ln :: Int)
+          in withColors lineNumberColor lineNumberBackgroundColor lns
+              <> line
+      | otherwise = line
+
   token (tokenType, ss) =
     tokenEffect tokenType $ fromString ss
 
@@ -116,11 +127,14 @@ ppr Style{..} = vcat . map (hcat . map token) where
     in styleToEffect tokenStyle
 
   styleToEffect TokenStyle{..} =
-    with (maybe Nop (Foreground . cnvColor) tokenColor) .
-    with (maybe Nop (Background . cnvColor) tokenBackground) .
+    withColors tokenColor tokenBackground .
     with (if tokenBold      then Bold      else Nop) .
     -- with (if tokenItalic    then Standout  else Nop) .
     with (if tokenUnderline then Underline else Nop)
+
+  withColors foreground background =
+    with (maybe Nop (Foreground . cnvColor) foreground) .
+    with (maybe Nop (Background . cnvColor) background)
 
 cnvColor :: Kate.Color -> Terminfo.Color
 cnvColor (RGB r g b) = ColorNumber
