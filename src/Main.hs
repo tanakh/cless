@@ -2,15 +2,20 @@
 
 module Main (main) where
 
+import           Control.Exception
 import           Control.Monad
 import           Data.Maybe
 import           Data.Monoid
 import           Data.String
 import           Options.Applicative
+import           System.Console.Terminfo
 import           System.Console.Terminfo.Color       as Terminfo
 import           System.Console.Terminfo.PrettyPrint
+import           System.Environment
+import           System.IO
+import           System.Process
 import           Text.Highlighting.Kate              as Kate
-import           Text.PrettyPrint.Free               (hcat, vcat)
+import           Text.PrettyPrint.Free               hiding ((<>))
 
 main :: IO ()
 main = join $ execParser opts where
@@ -47,6 +52,12 @@ styles =
   , ("zenburn"   , zenburn   )
   ]
 
+defaultPager :: String
+defaultPager = "less -R"
+
+defaultTerm :: String
+defaultTerm = "xterm-256color"
+
 process :: Bool -> Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
 process True _ _ _ _ =
   mapM_ putStrLn languages
@@ -59,7 +70,7 @@ process _ _ mb_lang mb_stylename mb_file = do
       Just file -> readFile file
       Nothing -> getContents
 
-  let lang = fromMaybe (error "cannot determin language")
+  let lang = fromMaybe (error $ "cannot determin language: " ++ fromMaybe "<stdin>" mb_file)
              $ mb_lang <|> do file <- mb_file; listToMaybe (languagesByFilename file)
 
       ss = highlightAs lang con
@@ -70,7 +81,23 @@ process _ _ mb_lang mb_stylename mb_file = do
         fromMaybe (error $ "invalid style name: " ++ name)
         $ lookup name styles
 
-  displayLn $ ppr style ss
+      doc = ppr style ss <> linebreak
+      sdoc = renderPretty 0.6 80 (prettyTerm doc)
+
+  evaluate sdoc
+
+  termType <- fromMaybe defaultTerm <$> lookupEnv "TERM"
+  pager <- fromMaybe defaultPager <$> lookupEnv "PAGER"
+  term  <- setupTerm $ if termType == "screen" then defaultTerm else termType
+
+  bracket
+    (createProcess (shell pager) { std_in = CreatePipe } )
+    ( \(_, _, _, ph) -> waitForProcess ph )
+    $ \(Just h, _, _, _) -> do
+      case getCapability term $ evalTermState $ displayCap sdoc of
+        Just output -> hRunTermOutput h term output
+        Nothing -> displayIO h sdoc
+      hClose h
 
 ppr :: Style -> [SourceLine] -> TermDoc
 ppr Style{..} = vcat . map (hcat . map token) where

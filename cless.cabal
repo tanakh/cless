@@ -21,6 +21,7 @@ executable cless
                      , wl-pprint-extras
                      , terminfo
                      , optparse-applicative >=0.11
+                     , process >=1.2
 
   hs-source-dirs:      src
   default-language:    Haskell2010
