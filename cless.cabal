@@ -2,7 +2,7 @@ name:                cless
 version:             0.1.0.0
 synopsis:            Colorized LESS
 description:         Print file contents with syntax highlighting
-homepage:            http://github.com/tanakh
+homepage:            https://github.com/tanakh/cless
 license:             MIT
 license-file:        LICENSE
 author:              Hideyuki Tanaka
@@ -11,6 +11,10 @@ copyright:           (c) 2015 Hideyuki Tanaka
 category:            Text
 build-type:          Simple
 cabal-version:       >=1.10
+
+source-repository head
+  type:                git
+  location:            https://github.com/tanakh/cless.git
 
 executable cless
   main-is:             Main.hs
