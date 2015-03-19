@@ -4,6 +4,7 @@ module Main (main) where
 
 import           Control.Exception
 import           Control.Monad
+import           Data.Char
 import           Data.Maybe
 import           Data.Monoid
 import           Data.String
@@ -81,21 +82,16 @@ process _ _ linum mb_lang mb_stylename mb_file = do
           error "Missing filename (\"cless --help\" for help)"
         getContents
 
-  let lang = fromMaybe "plain"
-             $ mb_lang <|> do file <- mb_file; listToMaybe (languagesByFilename file)
-
-      ss = highlightAs lang con
-
+  let lang  = determineLanguage mb_lang mb_file con
       style = maybe defaultStyle findStyle mb_stylename
 
-      findStyle name =
-        fromMaybe (error $ "invalid style name: " ++ name)
-        $ lookup name styles
+  -- to raise error eagerly
+  evaluate lang
+  evaluate style
 
-      doc = ppr linum style ss <> linebreak
+  let ss   = highlightAs lang con
+      doc  = ppr linum style ss <> linebreak
       sdoc = renderPretty 0.6 80 (prettyTerm doc)
-
-  evaluate style -- to raise error eagerly
 
   termType <- fromMaybe defaultTerm <$> lookupEnv "TERM"
   pager <- fromMaybe defaultPager <$> lookupEnv "PAGER"
@@ -109,6 +105,43 @@ process _ _ linum mb_lang mb_stylename mb_file = do
         Just output -> hRunTermOutput h term output
         Nothing -> displayIO h sdoc
       hClose h
+
+-- determin using language:
+--   1. user specified (must be correct)
+--   2. filename
+--   3. content
+determineLanguage :: Maybe String -> Maybe String -> String -> String
+determineLanguage mb_lang mb_file content = fromMaybe "plain" $
+  (isValid <$> mb_lang) <|>
+  (listToMaybe . languagesByFilename =<< mb_file) <|>
+  (findSupportedLanguage =<< detectLanguage content)
+  where
+    isValid lang
+      | Just lang' <- findSupportedLanguage lang = lang'
+      | otherwise = error $ "Unsupported language: " ++ lang
+
+-- detect language from shebang
+detectLanguage :: String -> Maybe String
+detectLanguage ss
+  | take 2 ss == "#!" =
+    let sb = head $ lines ss
+    in listToMaybe $ catMaybes
+       [ findSupportedLanguage w
+       | w <- words $ map (\c -> if c == '/' then ' ' else c) sb
+       ]
+  | otherwise =
+     Nothing
+
+findSupportedLanguage :: String -> Maybe String
+findSupportedLanguage lang
+  | map toLower lang `elem` map (map toLower) languages = Just lang
+  | (lang': _) <- languagesByExtension lang             = Just lang'
+  | otherwise = Nothing
+
+findStyle :: String -> Style
+findStyle name =
+  fromMaybe (error $ "invalid style name: " ++ name)
+  $ lookup name styles
 
 ppr :: Bool -> Style -> [SourceLine] -> TermDoc
 ppr linum Style{..} = vcat . zipWith addLinum [1..] . map (hcat . map token) where
