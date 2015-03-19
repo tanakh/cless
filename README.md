@@ -1,5 +1,16 @@
 # cless: Colorized LESS
 
+# Install
+
+* Install [Haskell Platform](https://www.haskell.org/platform/).
+
+* Install `cless` using `cabal`.
+
+```bash
+$ cabal update
+$ cabal install cless
+```
+
 # Usage
 
 ```bash
