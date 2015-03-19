@@ -17,12 +17,13 @@ $ cabal install cless
 > cless --help
 cless: Colorized LESS
 
-Usage: cless [-L|--list-langs] [-S|--list-styles] [-N|--LINE-NUMBERS]
-             [-l|--lang LANG] [-s|--style STYLE] [FILE]
+Usage: cless [-v|--version] [-L|--list-langs] [-S|--list-styles]
+             [-N|--LINE-NUMBERS] [-l|--lang LANG] [-s|--style STYLE] [FILE]
   Print the content of FILE with syntax highlighting
 
 Available options:
   -h,--help                Show this help text
+  -v,--version             Show version information
   -L,--list-langs          Show the list of supported languages
   -S,--list-styles         Show the list of supported styles
   -N,--LINE-NUMBERS        Show line numbers

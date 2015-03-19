@@ -8,6 +8,7 @@ import           Data.Char
 import           Data.Maybe
 import           Data.Monoid
 import           Data.String
+import           Data.Version
 import           Options.Applicative
 import           System.Console.Terminfo
 import           System.Console.Terminfo.Color       as Terminfo
@@ -19,6 +20,8 @@ import           Text.Highlighting.Kate              as Kate
 import           Text.PrettyPrint.Free               hiding ((<>))
 import           Text.Printf
 
+import           Paths_cless                         (version)
+
 main :: IO ()
 main = join $ execParser opts where
   opts = info (helper <*> cmd)
@@ -27,21 +30,18 @@ main = join $ execParser opts where
         <> header "cless: Colorized LESS" )
 
   cmd = process
-        <$> switch ( long "list-langs"
-                  <> short 'L'
+        <$> switch ( long "version" <> short 'v'
+                  <> help "Show version information" )
+        <*> switch ( long "list-langs" <> short 'L'
                   <> help "Show the list of supported languages" )
-        <*> switch ( long "list-styles"
-                  <> short 'S'
+        <*> switch ( long "list-styles" <> short 'S'
                   <> help "Show the list of supported styles" )
-        <*> switch ( long "LINE-NUMBERS"
-                  <> short 'N'
+        <*> switch ( long "LINE-NUMBERS" <> short 'N'
                   <> help "Show line numbers" )
-        <*> optional (strOption ( long "lang"
-                  <> short 'l'
+        <*> optional (strOption ( long "lang" <> short 'l'
                   <> metavar "LANG"
                   <> help "Specify language name" ) )
-        <*> optional (strOption ( long "style"
-                  <> short 's'
+        <*> optional (strOption ( long "style" <> short 's'
                   <> metavar "STYLE"
                   <> help "Specify style name (default 'pygments')" ) )
         <*> optional (argument str (metavar "FILE"))
@@ -66,21 +66,26 @@ defaultTerm = "xterm-256color"
 defaultStyle :: Style
 defaultStyle = pygments
 
-process :: Bool -> Bool -> Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
-process True _ _ _ _ _ =
-  mapM_ putStrLn languages
+process :: Bool -> Bool -> Bool -> Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
+process showVer showLangs showStyles linum mb_lang mb_stylename mb_file
+  | showVer =
+    putStrLn $ "cless version " ++ showVersion version
+  | showLangs =
+    mapM_ putStrLn languages
+  | showStyles =
+    mapM_ (putStrLn . fst) styles
+  | otherwise = do
+    process' linum mb_lang mb_stylename mb_file
 
-process _ True _ _ _ _ =
-  mapM_ (putStrLn . fst) styles
-
-process _ _ linum mb_lang mb_stylename mb_file = do
+process' :: Bool -> Maybe String -> Maybe String -> Maybe FilePath -> IO ()
+process' linum mb_lang mb_stylename mb_file = do
   con <- case mb_file of
-      Just file -> readFile file
-      Nothing   -> do
-        isTerm <- hIsTerminalDevice stdin
-        when isTerm $
-          error "Missing filename (\"cless --help\" for help)"
-        getContents
+    Just file -> readFile file
+    Nothing   -> do
+      isTerm <- hIsTerminalDevice stdin
+      when isTerm $
+        error "Missing filename (\"cless --help\" for help)"
+      getContents
 
   let lang  = determineLanguage mb_lang mb_file con
       style = maybe defaultStyle findStyle mb_stylename
