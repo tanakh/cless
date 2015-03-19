@@ -75,7 +75,11 @@ process _ True _ _ _ _ =
 process _ _ linum mb_lang mb_stylename mb_file = do
   con <- case mb_file of
       Just file -> readFile file
-      Nothing   -> getContents
+      Nothing   -> do
+        isTerm <- hIsTerminalDevice stdin
+        when isTerm $
+          error "Missing filename (\"cless --help\" for help)"
+        getContents
 
   let lang = fromMaybe "plain"
              $ mb_lang <|> do file <- mb_file; listToMaybe (languagesByFilename file)
